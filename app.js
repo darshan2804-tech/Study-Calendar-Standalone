@@ -27,6 +27,21 @@ const authScreen = document.getElementById('authScreen');
 const loginStatus = document.getElementById('loginStatus');
 
 auth.onAuthStateChanged(async user => {
+  // Hash-based Auto Login (from Portal)
+  if (!user && window.location.hash) {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const email = hashParams.get('email');
+    const pass = hashParams.get('pass');
+    if (email && pass) {
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+        // Clear hash after login for security
+        window.history.replaceState(null, null, window.location.pathname + window.location.search);
+        return; 
+      } catch(e) { console.error('Auto login failed', e); }
+    }
+  }
+
   if (user) {
     if (ADMIN_EMAILS.includes(user.email) || user.email === 'derkardarshan@gmail.com') {
       currentUser = user;
