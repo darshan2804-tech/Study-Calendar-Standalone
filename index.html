@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Study Cal">
+  <title>Study Schedule | SaaS Calendar</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    if (window.location.search.includes('embedded=true')) {
+      document.documentElement.classList.add('is-embedded');
+      document.body.classList.add('is-embedded');
+    }
+  </script>
+
+  <style>
+    .auth-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #020617; z-index: 9999; display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    .auth-card {
+      background: rgba(15, 23, 42, 0.8); padding: 40px; border-radius: 24px;
+      text-align: center; border: 1px solid rgba(255,255,255,0.06);
+      width: 90%; max-width: 400px; backdrop-filter: blur(20px);
+    }
+    .auth-input {
+      width: 100%; padding: 14px; margin-top: 15px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff;
+      font-family: 'Inter', sans-serif; font-size: 1rem; outline: none; transition: border-color 0.2s;
+    }
+    .auth-input:focus { border-color: #6366f1; }
+    .auth-btn {
+      width: 100%; background: #6366f1; color: #fff; font-weight: 700; 
+      padding: 16px; border-radius: 12px; border: none; margin-top: 24px; 
+      cursor: pointer; font-size: 1rem; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+      transition: all 0.2s;
+    }
+    .auth-btn:hover { background: #818cf8; transform: translateY(-1px); }
+  </style>
+</head>
+<body class="dark-theme">
+
+  <!-- SAAS AUTH SCREEN -->
+  <div id="authScreen" class="auth-overlay">
+    <div class="auth-card">
+      <div class="logo-icon" style="margin: 0 auto 20px auto; width:48px; height:48px; font-size:1.5rem;">📅</div>
+      <h2 style="font-family:'Outfit'; font-size:1.5rem; color:#fff;">Welcome Back</h2>
+      <p style="color:#94a3b8; margin-top:8px; font-size:0.9rem;">Sign in to your Study Tracker</p>
+      
+      <form id="loginForm" onsubmit="event.preventDefault(); submitLogin();">
+        <input type="email" id="loginEmail" class="auth-input" placeholder="Email Address" required>
+        <input type="password" id="loginPass" class="auth-input" placeholder="Password" required>
+        <button type="submit" class="auth-btn" id="btnLogin">Sign In</button>
+      </form>
+      <div id="loginStatus" style="color:#ef4444; font-size:0.85rem; margin-top:15px; display:none;"></div>
+    </div>
+  </div>
+
+  <!-- PREMIUM APP BAR -->
+  <header class="app-bar">
+    <div class="brand">
+      <div class="logo-icon">📅</div>
+      <h1>Study Cal</h1>
+    </div>
+    <div class="actions">
+      <button class="action-btn" id="btnExport" title="Export .ics">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="icon"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+      </button>
+      <button class="action-btn" id="btnToday" title="Jump to Today">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="icon"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+      </button>
+      <button class="action-btn" id="btnLogout" title="Logout">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="icon"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- SAAS NAV HEADER -->
+  <div class="calendar-nav">
+    <div class="nav-controls">
+      <button class="nav-arrow" id="prevMonth">‹</button>
+      <button class="nav-arrow" id="nextMonth">›</button>
+    </div>
+    <div class="month-label" id="monthTitle">...</div>
+    <div style="width: 72px;"></div> <!-- Spacer for balance -->
+  </div>
+
+  <div class="calendar-header-week">
+    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+  </div>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="calendar-main">
+    <div class="calendar-grid" id="fullCalendarGrid">
+      <!-- Generated via JS -->
+    </div>
+  </main>
+
+  <!-- SAAS MODAL -->
+  <div class="modal-overlay" id="eventModal">
+    <div class="modal" id="modalContent">
+      <div class="modal-header">
+        <h3 id="modalDateTitle">Date</h3>
+        <button class="close-btn" id="closeModal">×</button>
+      </div>
+      <div class="modal-body" id="modalEventsList"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+</html>
