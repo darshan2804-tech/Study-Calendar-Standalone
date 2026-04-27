@@ -41,8 +41,16 @@ export default async function handler(req, res) {
 
   // Default to today if date is missing
   if (!date || date === "") {
-    date = new Date().toISOString().split('T')[0];
-    console.log('Date was empty, defaulted to today:', date);
+    let targetDate = new Date();
+    const textToSearch = (cleanTitle + ' ' + cleanDesc).toLowerCase();
+    
+    if (textToSearch.includes('tomorrow')) {
+      targetDate.setDate(targetDate.getDate() + 1);
+      console.log('Detected "tomorrow" in text, adjusting date.');
+    }
+    
+    date = targetDate.toISOString().split('T')[0];
+    console.log('Date prioritized as:', date);
   }
 
   title = title || 'Calendar Event';
