@@ -120,7 +120,6 @@ function loadEntriesRealtime() {
 }
 
 function loadUserEventsRealtime() {
-  // Fetch from user-specific events collection
   db.collection('users').doc(currentUser.uid).collection('events')
     .onSnapshot(snap => {
       userEvents = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
@@ -173,12 +172,11 @@ function renderCalendar() {
     });
   });
 
-  // Add User Events (per-user) to eventMap
   userEvents.forEach(m => {
     if (m.date) {
-      const dateStr = m.date; // Should be YYYY-MM-DD
+      const dateStr = m.date;
       if (!eventMap[dateStr]) eventMap[dateStr] = [];
-      eventMap[dateStr].push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External' });
+      eventMap[dateStr].push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External', desc: m.desc });
     }
   });
 
@@ -212,7 +210,9 @@ function renderCalendar() {
         else if(ev.subject === 'Chemistry') dotId = '2';
         else if(ev.subject === 'Maths') dotId = '3';
         else if(ev.subject === 'User Event') dotId = '5';
-        blocks += `<div class="event-badge"><div class="event-dot dot-${dotId}"></div>${ev.topic}</div>`;
+        
+        const isUserEvent = ev.subject === 'User Event';
+        blocks += `<div class="event-badge ${isUserEvent ? 'user-event' : ''}"><div class="event-dot dot-${dotId}"></div>${ev.topic}</div>`;
       });
       if(evs.length > 3) blocks += `<div style="font-size:0.55rem; color:var(--text-muted); padding-left:4px; font-weight:700;">+ ${evs.length - 3} more</div>`;
       blocks += '</div>';
@@ -245,17 +245,13 @@ document.getElementById('btnLogout').addEventListener('click', () => {
 window.deleteEntry = async function(docId, topic) {
   if (!confirm(`Permanently delete "${topic}"?`)) return;
   try {
-    // Try deleting from entries first, then events
-    await db.collection('users').doc(currentUser.uid).collection('entries').doc(String(docId)).delete();
-    await db.collection('users').doc(currentUser.uid).collection('events').doc(String(docId)).delete();
+    const userRef = db.collection('users').doc(currentUser.uid);
+    await Promise.all([
+      userRef.collection('entries').doc(String(docId)).delete().catch(()=>{}),
+      userRef.collection('events').doc(String(docId)).delete().catch(()=>{})
+    ]);
     document.getElementById('eventModal').style.display = 'none';
-  } catch(e) { 
-    // Fallback if one fails
-    try {
-       await db.collection('users').doc(currentUser.uid).collection('events').doc(String(docId)).delete();
-       document.getElementById('eventModal').style.display = 'none';
-    } catch(e2) { alert('Sync error: ' + e2.message); }
-  }
+  } catch(e) { alert('Sync error: ' + e.message); }
 }
 
 window.openModal = function(dateStr) {
@@ -283,7 +279,7 @@ window.openModal = function(dateStr) {
   
   userEvents.forEach(m => {
     if (m.date === dateStr) {
-      evs.push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External', time: 'Pinned', isUserEvent: true });
+      evs.push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External', time: 'Shortcut', isUserEvent: true, desc: m.desc });
     }
   });
 
@@ -306,6 +302,7 @@ window.openModal = function(dateStr) {
         <div class="event-info">
           <h4>${ev.topic}</h4>
           <p>${ev.subject} • ${ev.time} • ${ev.label}</p>
+          ${ev.desc ? `<div class="event-desc">${ev.desc}</div>` : ''}
         </div>
         <button class="delete-btn" onclick="event.stopPropagation(); deleteEntry('${ev.id}', decodeURIComponent('${encodeURIComponent(ev.topic)}'))">🗑️</button>
       </div>`;
@@ -341,9 +338,10 @@ document.getElementById('btnExport').addEventListener('click', () => {
 
   userEvents.forEach(m => {
      if(!m.date) return;
-     const fStart = m.date.replace(/-/g, '') + 'T090000Z';
-     const fEnd = m.date.replace(/-/g, '') + 'T100000Z';
-     icsLines = icsLines.concat(['BEGIN:VEVENT', `UID:${m.id}`, `DTSTAMP:${nowStr}`, `DTSTART:${fStart}`, `DTEND:${fEnd}`, `SUMMARY:${m.title}`, `DESCRIPTION:${m.desc}`, 'END:VEVENT']);
+     const datClean = m.date.replace(/-/g, '');
+     const fStart = datClean + 'T090000Z';
+     const fEnd = datClean + 'T100000Z';
+     icsLines = icsLines.concat(['BEGIN:VEVENT', `UID:${m.id}`, `DTSTAMP:${nowStr}`, `DTSTART:${fStart}`, `DTEND:${fEnd}`, `SUMMARY:${m.title}`, `DESCRIPTION:${m.desc || ''}`, 'END:VEVENT']);
   });
 
   icsLines.push('END:VCALENDAR');

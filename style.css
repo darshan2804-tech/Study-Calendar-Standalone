@@ -276,7 +276,14 @@ body.is-embedded .calendar-main { padding-top: 0; }
 .dot-2 { background: var(--subject-2); box-shadow: 0 0 6px var(--subject-2); }
 .dot-3 { background: var(--subject-3); box-shadow: 0 0 6px var(--subject-3); }
 .dot-4 { background: var(--subject-4); box-shadow: 0 0 6px var(--subject-4); }
-.dot-5 { background: #f43f5e; box-shadow: 0 0 6px #f43f5e; }
+.dot-5 { background: #f43f5e; box-shadow: 0 0 10px rgba(244, 63, 94, 0.4); }
+
+.event-badge.user-event {
+  background: linear-gradient(90deg, rgba(244, 63, 94, 0.15), rgba(244, 63, 94, 0.05));
+  border-left: 2px solid #f43f5e;
+  font-weight: 700;
+  color: #fda4af;
+}
 
 /* MODAL & BOTTOM SHEET */
 .modal-overlay {
@@ -357,8 +364,9 @@ body.is-embedded .calendar-main { padding-top: 0; }
 }
 
 .event-info { flex: 1; }
-.event-info h4 { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
+.event-info h4 { font-size: 1rem; font-weight: 700; margin-bottom: 2px; color: #fff; }
 .event-info p { font-size: 0.8rem; color: var(--text-dim); }
+.event-info .event-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; font-style: italic; }
 
 .delete-btn {
   background: rgba(239, 68, 68, 0.1);
