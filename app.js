@@ -174,7 +174,8 @@ function renderCalendar() {
 
   userEvents.forEach(m => {
     if (m.date) {
-      const dateStr = m.date;
+      // Safety fix: Normalize date to YYYY-MM-DD if it contains time
+      const dateStr = m.date.includes('T') ? m.date.split('T')[0] : m.date;
       if (!eventMap[dateStr]) eventMap[dateStr] = [];
       eventMap[dateStr].push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External', desc: m.desc });
     }
@@ -278,7 +279,9 @@ window.openModal = function(dateStr) {
   });
   
   userEvents.forEach(m => {
-    if (m.date === dateStr) {
+    // Safety fix: Normalize date to YYYY-MM-DD if it contains time
+    const mDate = m.date && m.date.includes('T') ? m.date.split('T')[0] : m.date;
+    if (mDate === dateStr) {
       evs.push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External', time: 'Shortcut', isUserEvent: true, desc: m.desc });
     }
   });
@@ -338,7 +341,7 @@ document.getElementById('btnExport').addEventListener('click', () => {
 
   userEvents.forEach(m => {
      if(!m.date) return;
-     const datClean = m.date.replace(/-/g, '');
+     const datClean = m.date.includes('T') ? m.date.split('T')[0].replace(/-/g, '') : m.date.replace(/-/g, '');
      const fStart = datClean + 'T090000Z';
      const fEnd = datClean + 'T100000Z';
      icsLines = icsLines.concat(['BEGIN:VEVENT', `UID:${m.id}`, `DTSTAMP:${nowStr}`, `DTSTART:${fStart}`, `DTEND:${fEnd}`, `SUMMARY:${m.title}`, `DESCRIPTION:${m.desc || ''}`, 'END:VEVENT']);
