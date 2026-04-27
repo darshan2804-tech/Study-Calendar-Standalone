@@ -15,7 +15,7 @@ const db   = firebase.firestore();
 
 let currentUser = null;
 let entries     = [];
-let mockTests   = [];
+let userEvents  = [];
 let curCalDate  = new Date();
 let isLoading   = true;
 
@@ -48,7 +48,7 @@ auth.onAuthStateChanged(async user => {
       currentUser = user;
       authScreen.style.display = 'none';
       loadEntriesRealtime();
-      loadMockTestsRealtime();
+      loadUserEventsRealtime();
       startNotificationEngine();
     } else {
       try {
@@ -57,7 +57,7 @@ auth.onAuthStateChanged(async user => {
           currentUser = user;
           authScreen.style.display = 'none';
           loadEntriesRealtime();
-          loadMockTestsRealtime();
+          loadUserEventsRealtime();
           startNotificationEngine();
         } else {
           loginStatus.innerHTML = "Access Restricted. <br> Please wait for admin approval.";
@@ -119,13 +119,14 @@ function loadEntriesRealtime() {
     });
 }
 
-function loadMockTestsRealtime() {
-  db.collection('mock_tests')
+function loadUserEventsRealtime() {
+  // Fetch from user-specific events collection
+  db.collection('users').doc(currentUser.uid).collection('events')
     .onSnapshot(snap => {
-      mockTests = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+      userEvents = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
       renderCalendar();
     }, err => {
-      console.error('Error loading mock tests:', err);
+      console.error('Error loading user events:', err);
     });
 }
 
@@ -172,12 +173,12 @@ function renderCalendar() {
     });
   });
 
-  // Add Mock Tests to eventMap
-  mockTests.forEach(m => {
+  // Add User Events (per-user) to eventMap
+  userEvents.forEach(m => {
     if (m.date) {
       const dateStr = m.date; // Should be YYYY-MM-DD
       if (!eventMap[dateStr]) eventMap[dateStr] = [];
-      eventMap[dateStr].push({ id: m.id, topic: m.title, subject: 'Mock Test', label: 'Test' });
+      eventMap[dateStr].push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External' });
     }
   });
 
@@ -198,7 +199,7 @@ function renderCalendar() {
         if(ev.subject === 'Physics') dotId = '1';
         else if(ev.subject === 'Chemistry') dotId = '2';
         else if(ev.subject === 'Maths') dotId = '3';
-        else if(ev.subject === 'Mock Test') dotId = '5';
+        else if(ev.subject === 'User Event') dotId = '5';
         blocks += `<div class="event-dot-mobile dot-${dotId}"></div>`;
       });
       if(evs.length > 5) blocks += `<div style="font-size:0.5rem; color:var(--text-muted); line-height:1;">+</div>`;
@@ -210,7 +211,7 @@ function renderCalendar() {
         if(ev.subject === 'Physics') dotId = '1';
         else if(ev.subject === 'Chemistry') dotId = '2';
         else if(ev.subject === 'Maths') dotId = '3';
-        else if(ev.subject === 'Mock Test') dotId = '5';
+        else if(ev.subject === 'User Event') dotId = '5';
         blocks += `<div class="event-badge"><div class="event-dot dot-${dotId}"></div>${ev.topic}</div>`;
       });
       if(evs.length > 3) blocks += `<div style="font-size:0.55rem; color:var(--text-muted); padding-left:4px; font-weight:700;">+ ${evs.length - 3} more</div>`;
@@ -242,11 +243,19 @@ document.getElementById('btnLogout').addEventListener('click', () => {
 
 // --- MODAL & DELETION ---
 window.deleteEntry = async function(docId, topic) {
-  if (!confirm(`Permanently delete "${topic}" and all 7 scheduled revisions?`)) return;
+  if (!confirm(`Permanently delete "${topic}"?`)) return;
   try {
+    // Try deleting from entries first, then events
     await db.collection('users').doc(currentUser.uid).collection('entries').doc(String(docId)).delete();
+    await db.collection('users').doc(currentUser.uid).collection('events').doc(String(docId)).delete();
     document.getElementById('eventModal').style.display = 'none';
-  } catch(e) { alert('Sync error: ' + e.message); }
+  } catch(e) { 
+    // Fallback if one fails
+    try {
+       await db.collection('users').doc(currentUser.uid).collection('events').doc(String(docId)).delete();
+       document.getElementById('eventModal').style.display = 'none';
+    } catch(e2) { alert('Sync error: ' + e2.message); }
+  }
 }
 
 window.openModal = function(dateStr) {
@@ -272,16 +281,16 @@ window.openModal = function(dateStr) {
     });
   });
   
-  mockTests.forEach(m => {
+  userEvents.forEach(m => {
     if (m.date === dateStr) {
-      evs.push({ id: m.id, topic: m.title, subject: 'Mock Test', label: 'iPad Shortcut', time: 'Mock Test', isMock: true });
+      evs.push({ id: m.id, topic: m.title, subject: 'User Event', label: 'External', time: 'Pinned', isUserEvent: true });
     }
   });
 
   if(!evs.length) {
     list.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
       <div style="font-size:2rem; margin-bottom:10px;">☕</div>
-      <p style="font-size:0.9rem; font-weight:500;">No revisions scheduled for this day.</p>
+      <p style="font-size:0.9rem; font-weight:500;">No events scheduled for this day.</p>
     </div>`;
   } else {
     list.innerHTML = evs.map(ev => {
@@ -289,10 +298,8 @@ window.openModal = function(dateStr) {
       if(ev.subject === 'Physics') accent = 'var(--subject-1)';
       else if(ev.subject === 'Chemistry') accent = 'var(--subject-2)';
       else if(ev.subject === 'Maths') accent = 'var(--subject-3)';
-      else if(ev.subject === 'Mock Test') accent = '#f43f5e';
+      else if(ev.subject === 'User Event') accent = '#f43f5e';
       
-      const deletePart = ev.isMock ? '' : `<button class="delete-btn" onclick="event.stopPropagation(); deleteEntry('${ev.id}', decodeURIComponent('${encodeURIComponent(ev.topic)}'))">🗑️</button>`;
-
       return `
       <div class="modal-event-item">
         <div class="event-indicator" style="background:${accent}"></div>
@@ -300,7 +307,7 @@ window.openModal = function(dateStr) {
           <h4>${ev.topic}</h4>
           <p>${ev.subject} • ${ev.time} • ${ev.label}</p>
         </div>
-        ${deletePart}
+        <button class="delete-btn" onclick="event.stopPropagation(); deleteEntry('${ev.id}', decodeURIComponent('${encodeURIComponent(ev.topic)}'))">🗑️</button>
       </div>`;
     }).join('');
   }
@@ -314,9 +321,10 @@ document.getElementById('eventModal').addEventListener('click', (e) => {
 
 // --- EXPORT ---
 document.getElementById('btnExport').addEventListener('click', () => {
-  if(!entries.length) return alert('No data to export');
+  if(!entries.length && !userEvents.length) return alert('No data to export');
   let icsLines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Study Cal//EN', 'CALSCALE:GREGORIAN'];
   const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  
   entries.forEach(e => {
     (e.revisions || []).forEach((r, idx) => {
       let rDate = null;
@@ -327,9 +335,17 @@ document.getElementById('btnExport').addEventListener('click', () => {
       if(!rDate || isNaN(rDate.getTime())) return;
       const fStart = rDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       const fEnd = new Date(rDate.getTime() + 3600000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-      icsLines = icsLines.concat(['BEGIN:VEVENT', `UID:${e.id}-${idx}`, `DTSTAMP:${nowStr}`, `DTSTART:${fStart}`, `DTEND:${fEnd}`, `SUMMARY:Revise ${e.topic}`, `DESCRIPTION:${ev.subject} - ${r.label}`, 'END:VEVENT']);
+      icsLines = icsLines.concat(['BEGIN:VEVENT', `UID:${e.id}-${idx}`, `DTSTAMP:${nowStr}`, `DTSTART:${fStart}`, `DTEND:${fEnd}`, `SUMMARY:Revise ${e.topic}`, `DESCRIPTION:${e.subject} - ${r.label}`, 'END:VEVENT']);
     });
   });
+
+  userEvents.forEach(m => {
+     if(!m.date) return;
+     const fStart = m.date.replace(/-/g, '') + 'T090000Z';
+     const fEnd = m.date.replace(/-/g, '') + 'T100000Z';
+     icsLines = icsLines.concat(['BEGIN:VEVENT', `UID:${m.id}`, `DTSTAMP:${nowStr}`, `DTSTART:${fStart}`, `DTEND:${fEnd}`, `SUMMARY:${m.title}`, `DESCRIPTION:${m.desc}`, 'END:VEVENT']);
+  });
+
   icsLines.push('END:VCALENDAR');
   const blob = new Blob([icsLines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'study_cal.ics'; a.click();

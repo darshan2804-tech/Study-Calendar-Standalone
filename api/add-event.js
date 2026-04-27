@@ -15,15 +15,21 @@ export default async function handler(req, res) {
   }
 
   // 3. Extract Payload
-  const { title, date, desc } = req.body;
+  const { userId, title, date, desc } = req.body;
 
-  if (!title || !date || !desc) {
-    return res.status(400).json({ error: 'Missing required fields: title, date, desc.' });
+  if (!userId || !title || !date || !desc) {
+    return res.status(400).json({ error: 'Missing required fields: userId, title, date, desc.' });
+  }
+
+  // 4. Security Check: Only allow specific userId if ALLOWED_USER_ID is set
+  const allowedUser = process.env.ALLOWED_USER_ID;
+  if (allowedUser && userId !== allowedUser) {
+    return res.status(403).json({ error: 'Forbidden. This API is currently restricted to a specific user.' });
   }
 
   try {
-    // 4. Save to Firestore collection 'mock_tests'
-    const docRef = await db.collection('mock_tests').add({
+    // 5. Save to Firestore collection: users/{userId}/events
+    const docRef = await db.collection('users').doc(userId).collection('events').add({
       title,
       date, // Expected format: YYYY-MM-DD
       desc,
@@ -31,10 +37,10 @@ export default async function handler(req, res) {
       source: 'iPad Shortcut'
     });
 
-    // 5. Successful Response
+    // 6. Successful Response
     return res.status(200).json({
       success: true,
-      message: 'Event added successfully.',
+      message: 'Event added successfully to user profile.',
       id: docRef.id
     });
   } catch (error) {
