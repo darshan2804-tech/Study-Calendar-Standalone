@@ -15,54 +15,68 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized. Invalid or missing Bearer token.' });
   }
 
-  // 3. Extract Payload (Handle both userId and userid)
-  const userId = req.body.userId || req.body.userid;
-  const { title, date, desc } = req.body;
+  // 3. Extract Payload
+  let userId = req.body.userId || req.body.userid;
+  let { title, date, desc } = req.body;
 
-  // Logging for Debugging 400 Errors
-  if (!userId || !title || !date || !desc) {
-    console.error('400 Bad Request - Missing Fields:', { 
-      hasUserId: !!userId, 
-      hasTitle: !!title, 
-      hasDate: !!date, 
-      hasDesc: !!desc,
-      bodyReceived: req.body 
-    });
-    return res.status(400).json({ error: 'Missing required fields: userId, title, date, desc.' });
+  // --- SMART PARSING (If Gemini text is a JSON block) ---
+  if (desc && desc.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(desc.trim());
+      title = parsed.title || title;
+      date = parsed.date || parsed.startTime || parsed.datetime || date;
+      if (parsed.notes || parsed.desc || parsed.description) {
+         desc = parsed.notes || parsed.desc || parsed.description;
+      }
+    } catch (e) {
+      console.log('Desc is not valid JSON, using as raw text');
+    }
   }
 
-  // 4. Security Check: Only allow specific userId if ALLOWED_USER_ID is set
+  // --- FALLBACKS & VALIDATION ---
+  if (!userId) {
+    console.error('Failure: Missing userId');
+    return res.status(400).json({ error: 'Missing userId' });
+  }
+
+  // Default to today if date is missing
+  if (!date || date === "") {
+    date = new Date().toISOString().split('T')[0];
+    console.log('Date was empty, defaulted to today:', date);
+  }
+
+  title = title || 'Calendar Event';
+  desc = desc || 'Added via iPad Shortcut';
+
+  // 4. Security Check
   const allowedUser = process.env.ALLOWED_USER_ID;
   if (allowedUser && userId !== allowedUser) {
-    console.warn(`403 Forbidden - ID Mismatch. Rec: ${userId}, Alw: ${allowedUser}`);
-    return res.status(403).json({ error: 'Forbidden. This API is currently restricted to a specific user.' });
+    return res.status(403).json({ error: 'Forbidden. User ID mismatch.' });
   }
 
-  // 5. Prettify Text (Make it "mannered")
+  // 5. Prettify Text
   const cleanTitle = title.trim().charAt(0).toUpperCase() + title.trim().slice(1);
-  const cleanDesc = desc.trim()
-    .replace(/\r\n/g, '\n') // Normalize newlines
-    .replace(/\n{3,}/g, '\n\n'); // Limit excessive spacing
+  const cleanDesc = String(desc).trim()
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n');
 
   try {
-    // 6. Save to Firestore collection: users/{userId}/events
+    // 6. Save to Firestore
     const docRef = await db.collection('users').doc(userId).collection('events').add({
       title: cleanTitle,
-      // Normalize date to YYYY-MM-DD if it's a full ISO string
       date: date.includes('T') ? date.split('T')[0] : date, 
       desc: cleanDesc,
       createdAt: new Date().toISOString(),
       source: 'iPad Shortcut'
     });
 
-    // 7. Successful Response
     return res.status(200).json({
       success: true,
-      message: 'Event added successfully to user profile.',
+      message: 'Event added successfully.',
       id: docRef.id
     });
   } catch (error) {
     console.error('Firestore Error:', error);
-    return res.status(500).json({ error: 'Failed to save event to database.' });
+    return res.status(500).json({ error: 'Failed to save event.' });
   }
 }
