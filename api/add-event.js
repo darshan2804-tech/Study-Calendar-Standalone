@@ -14,8 +14,9 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized. Invalid or missing Bearer token.' });
   }
 
-  // 3. Extract Payload
-  const { userId, title, date, desc } = req.body;
+  // 3. Extract Payload (Handle both userId and userid)
+  const userId = req.body.userId || req.body.userid;
+  const { title, date, desc } = req.body;
 
   if (!userId || !title || !date || !desc) {
     return res.status(400).json({ error: 'Missing required fields: userId, title, date, desc.' });
