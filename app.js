@@ -15,6 +15,7 @@ const db   = firebase.firestore();
 
 let currentUser = null;
 let entries     = [];
+let mockTests   = [];
 let curCalDate  = new Date();
 let isLoading   = true;
 
@@ -47,6 +48,7 @@ auth.onAuthStateChanged(async user => {
       currentUser = user;
       authScreen.style.display = 'none';
       loadEntriesRealtime();
+      loadMockTestsRealtime();
       startNotificationEngine();
     } else {
       try {
@@ -55,6 +57,7 @@ auth.onAuthStateChanged(async user => {
           currentUser = user;
           authScreen.style.display = 'none';
           loadEntriesRealtime();
+          loadMockTestsRealtime();
           startNotificationEngine();
         } else {
           loginStatus.innerHTML = "Access Restricted. <br> Please wait for admin approval.";
@@ -116,6 +119,16 @@ function loadEntriesRealtime() {
     });
 }
 
+function loadMockTestsRealtime() {
+  db.collection('mock_tests')
+    .onSnapshot(snap => {
+      mockTests = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+      renderCalendar();
+    }, err => {
+      console.error('Error loading mock tests:', err);
+    });
+}
+
 // --- UTILS ---
 function toLocalDate(d){ return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
 function p(n){ return n < 10 ? '0'+n : n; }
@@ -159,6 +172,15 @@ function renderCalendar() {
     });
   });
 
+  // Add Mock Tests to eventMap
+  mockTests.forEach(m => {
+    if (m.date) {
+      const dateStr = m.date; // Should be YYYY-MM-DD
+      if (!eventMap[dateStr]) eventMap[dateStr] = [];
+      eventMap[dateStr].push({ id: m.id, topic: m.title, subject: 'Mock Test', label: 'Test' });
+    }
+  });
+
   let html = '';
   for(let i = firstDay; i > 0; i--) { html += `<div class="cal-cell other-month"><div class="cell-date">${daysInPrev - i + 1}</div></div>`; }
   
@@ -176,6 +198,7 @@ function renderCalendar() {
         if(ev.subject === 'Physics') dotId = '1';
         else if(ev.subject === 'Chemistry') dotId = '2';
         else if(ev.subject === 'Maths') dotId = '3';
+        else if(ev.subject === 'Mock Test') dotId = '5';
         blocks += `<div class="event-dot-mobile dot-${dotId}"></div>`;
       });
       if(evs.length > 5) blocks += `<div style="font-size:0.5rem; color:var(--text-muted); line-height:1;">+</div>`;
@@ -187,6 +210,7 @@ function renderCalendar() {
         if(ev.subject === 'Physics') dotId = '1';
         else if(ev.subject === 'Chemistry') dotId = '2';
         else if(ev.subject === 'Maths') dotId = '3';
+        else if(ev.subject === 'Mock Test') dotId = '5';
         blocks += `<div class="event-badge"><div class="event-dot dot-${dotId}"></div>${ev.topic}</div>`;
       });
       if(evs.length > 3) blocks += `<div style="font-size:0.55rem; color:var(--text-muted); padding-left:4px; font-weight:700;">+ ${evs.length - 3} more</div>`;
@@ -248,6 +272,12 @@ window.openModal = function(dateStr) {
     });
   });
   
+  mockTests.forEach(m => {
+    if (m.date === dateStr) {
+      evs.push({ id: m.id, topic: m.title, subject: 'Mock Test', label: 'iPad Shortcut', time: 'Mock Test', isMock: true });
+    }
+  });
+
   if(!evs.length) {
     list.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
       <div style="font-size:2rem; margin-bottom:10px;">☕</div>
@@ -259,6 +289,10 @@ window.openModal = function(dateStr) {
       if(ev.subject === 'Physics') accent = 'var(--subject-1)';
       else if(ev.subject === 'Chemistry') accent = 'var(--subject-2)';
       else if(ev.subject === 'Maths') accent = 'var(--subject-3)';
+      else if(ev.subject === 'Mock Test') accent = '#f43f5e';
+      
+      const deletePart = ev.isMock ? '' : `<button class="delete-btn" onclick="event.stopPropagation(); deleteEntry('${ev.id}', decodeURIComponent('${encodeURIComponent(ev.topic)}'))">🗑️</button>`;
+
       return `
       <div class="modal-event-item">
         <div class="event-indicator" style="background:${accent}"></div>
@@ -266,7 +300,7 @@ window.openModal = function(dateStr) {
           <h4>${ev.topic}</h4>
           <p>${ev.subject} • ${ev.time} • ${ev.label}</p>
         </div>
-        <button class="delete-btn" onclick="event.stopPropagation(); deleteEntry('${ev.id}', decodeURIComponent('${encodeURIComponent(ev.topic)}'))">🗑️</button>
+        ${deletePart}
       </div>`;
     }).join('');
   }

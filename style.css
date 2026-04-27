@@ -276,6 +276,7 @@ body.is-embedded .calendar-main { padding-top: 0; }
 .dot-2 { background: var(--subject-2); box-shadow: 0 0 6px var(--subject-2); }
 .dot-3 { background: var(--subject-3); box-shadow: 0 0 6px var(--subject-3); }
 .dot-4 { background: var(--subject-4); box-shadow: 0 0 6px var(--subject-4); }
+.dot-5 { background: #f43f5e; box-shadow: 0 0 6px #f43f5e; }
 
 /* MODAL & BOTTOM SHEET */
 .modal-overlay {
