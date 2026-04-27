@@ -32,7 +32,8 @@ export default async function handler(req, res) {
     // 5. Save to Firestore collection: users/{userId}/events
     const docRef = await db.collection('users').doc(userId).collection('events').add({
       title,
-      date, // Expected format: YYYY-MM-DD
+      // Normalize date to YYYY-MM-DD if it's a full ISO string
+      date: date.includes('T') ? date.split('T')[0] : date, 
       desc,
       createdAt: new Date().toISOString(),
       source: 'iPad Shortcut'
